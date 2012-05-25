@@ -17,7 +17,7 @@ def find_nearest_pom(path):
     	return cur_path
     else:
     	parent,child = os.path.split(cur_path)
-    	if len(last_dir) == 0:
+    	if len(child) == 0:
     		return None
     	else:
     		return find_nearest_pom(parent)
@@ -31,10 +31,11 @@ class MavenCommand(sublime_plugin.WindowCommand):
 	cmd = None
 
 	def run(self, paths, goals):
-		branch, leaf = os.path.split(paths[0])
-		# print branch
-		# print leaf
-		self.cmd = ['mvn']
+		# on windows: use mvn.bat
+		if os.name == 'nt':
+			self.cmd = ['mvn.bat']
+		else:
+			self.cmd = ['mvn']
 		self.pomDir = find_nearest_pom(paths[0])
 		print self.pomDir
 		if len(goals) == 0:
