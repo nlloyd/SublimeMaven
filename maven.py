@@ -29,6 +29,7 @@ Will only be visible if the path argument given is part of a maven project (pom.
 class MavenCommand(sublime_plugin.WindowCommand):
 	pomDir = None
 	cmd = None
+	last_run_goals = ['clean','install']
 
 	def run(self, paths, goals):
 		# on windows: use mvn.bat
@@ -37,17 +38,16 @@ class MavenCommand(sublime_plugin.WindowCommand):
 		else:
 			self.cmd = ['mvn']
 		self.pomDir = find_nearest_pom(paths[0])
-		print self.pomDir
 		if len(goals) == 0:
-			self.window.show_input_panel('mvn','clean install',self.on_done,None,None)
+			self.window.show_input_panel('mvn',' '.join(self.last_run_goals),self.on_done,None,None)
 		else:
-			self.on_done(' '.join(goals))
+			self.last_run_goals = goals
+			self.on_done(' '.join(self.last_run_goals))
 
 	def on_done(self, text):
+		self.last_run_goals = text.split(' ')
 		self.cmd += [u'-B']
-		self.cmd += text.split(' ')
-		print self.cmd
-		print self.pomDir
+		self.cmd += self.last_run_goals
 		self.window.run_command("exec",
 			{
 				"cmd":self.cmd,
