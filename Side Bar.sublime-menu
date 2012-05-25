@@ -1,0 +1,12 @@
+[
+  { "caption": "-" },
+  // {
+  //   "caption": "Maven",
+  //   "children":
+  //     [
+        { "caption": "Maven: Run install", "command": "maven", "args": {"paths": [], "goals": ["install"]} },
+        { "caption": "Maven: Run clean install", "command": "maven", "args": {"paths": [], "goals": ["clean", "install"]} },
+        { "caption": "Maven: Run ...", "command": "maven", "args": {"paths": [], "goals": []} }
+  //     ]
+  // }
+]

@@ -1,0 +1,8 @@
+{
+	"target": "maven",
+	//"selector":"source.scala|source.java|source.xml"
+	"cmd": "mvn",
+	"windows": {
+		"cmd":"mvn.bat"
+	}
+}
