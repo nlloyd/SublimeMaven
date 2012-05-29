@@ -1,5 +1,8 @@
 *.py[co]
 
+*.sublime-menu
+*.sublime-commands
+
 # Packages
 *.egg
 *.egg-info

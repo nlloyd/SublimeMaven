@@ -1,5 +1,48 @@
 import sublime, sublime_plugin
 import os
+import json
+
+# write the configuration dependent 'Side Bar', 'Context', and 'Command pallet'
+# using user-specified command lists, or defaults if none found
+settings = sublime.load_settings('Preferences.sublime-settings')
+maven_cmd_entry_list = settings.get('maven_menu_commands', 
+    [
+        { "caption": "Maven: Run install", "command": "maven", "args": {"paths": [], "goals": ["install"]} },
+        { "caption": "Maven: Run clean install", "command": "maven", "args": {"paths": [], "goals": ["clean", "install"]} },
+        { "caption": "Maven: Run ...", "command": "maven", "args": {"paths": [], "goals": []} }
+    ])
+
+commands_str = json.dumps(maven_cmd_entry_list, sort_keys = True, indent = 4)
+
+for menu_entry in maven_cmd_entry_list:
+    menu_entry['caption'] = menu_entry['caption'].replace('Maven: ', '', 1)
+
+menu_cmd_list = [
+    { "caption": "-" },
+        {
+        "caption": "Maven",
+        "children": maven_cmd_entry_list
+        }
+    ]
+
+menu_cmd_list_str = json.dumps(menu_cmd_list, sort_keys = True, indent = 4)
+
+maven_packages_path = os.getcwd()
+maven_config = open(os.path.join(maven_packages_path, "Context.sublime-menu"), "w+")
+maven_config.write(menu_cmd_list_str)
+maven_config.flush()
+maven_config.close()
+maven_config = open(os.path.join(maven_packages_path, "Side Bar.sublime-menu"), "w+")
+maven_config.write(menu_cmd_list_str)
+maven_config.flush()
+maven_config.close()
+maven_config = open(os.path.join(maven_packages_path, "Default.sublime-commands"), "w+")
+maven_config.write(commands_str)
+maven_config.flush()
+maven_config.close()
+
+
+#**** COMMAND CODE ****#
 
 '''
 Recursive call to find (and return) the nearest path in the current
@@ -61,5 +104,7 @@ class MavenCommand(sublime_plugin.WindowCommand):
                 'file_regex':'^\\[ERROR\\] ([^:]+):\\[([0-9]+),([0-9]+)\\] (.*)'
             })
 
-    def is_visible(self, paths, goals):
+    def is_enabled(self, paths, goals):
+        if len(paths) == 0 and self.window.active_view().file_name():
+            paths = [self.window.active_view().file_name()]
         return (len(paths) == 1) and (find_nearest_pom(paths[0]) != None)
