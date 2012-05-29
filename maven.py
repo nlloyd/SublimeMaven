@@ -12,7 +12,16 @@ maven_cmd_entry_list = settings.get('maven_menu_commands',
         { "caption": "Maven: Run ...", "command": "maven", "args": {"paths": [], "goals": []} }
     ])
 
+has_custom_run = False
+for menu_entry in maven_cmd_entry_list:
+    if len(menu_entry['args']['goals']) == 0:
+        has_custom_run = True
+
+if not has_custom_run:
+    maven_cmd_entry_list.append({ "caption": "Maven: Run ...", "command": "maven", "args": {"paths": [], "goals": []} })
+
 commands_str = json.dumps(maven_cmd_entry_list, sort_keys = True, indent = 4)
+
 
 for menu_entry in maven_cmd_entry_list:
     menu_entry['caption'] = menu_entry['caption'].replace('Maven: ', '', 1)
