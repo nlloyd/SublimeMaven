@@ -52,7 +52,7 @@ class MavenCommand(sublime_plugin.WindowCommand):
 
     def on_done(self, text):
         self.last_run_goals = text.split(' ')
-        self.cmd += [u'-B']
+        # self.cmd += [u'-B']
         self.cmd += self.last_run_goals
         self.window.run_command("exec",
             {

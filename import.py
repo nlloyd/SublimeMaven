@@ -2,6 +2,7 @@ import sublime, sublime_plugin
 import os
 import json
 import threading
+import xml.sax
 
 '''
 Borrowed from Package Control plugin.
@@ -34,6 +35,26 @@ class ThreadProgress():
         i += self.addend
         sublime.set_timeout(lambda: self.run(i), 100)
 
+class PomHandler(xml.sax.ContentHandler):
+    elements = []
+    groupId = None
+    artifactId = None
+
+    def get_project_name(self):
+        return '%s:%s:PROJECT' % (self.groupId, self.artifactId)
+
+    def startElement(self, name, attrs):
+        self.elements.append(name)
+
+    def characters(self, content):
+        if len(self.elements) == 2:
+            if self.elements[-1] == 'groupId':
+                self.groupId = content
+            if self.elements[-1] == 'artifactId':
+                self.artifactId = content
+
+    def endElement(self, name):
+        self.elements.pop()
 
 '''
 PomProjectGeneratorThread: walks a directory tree, searching for all
@@ -53,7 +74,19 @@ class PomProjectGeneratorThread(threading.Thread):
 
         self.result = { "folders": pom_paths }
 
+        for project_entry in self.result['folders']:
+            project_entry['name'] = self.gen_project_name(os.path.join(project_entry['path'], 'pom.xml'))
+
         sublime.set_timeout(lambda: self.publish_config_view(), 100)
+
+    def gen_project_name(self, pom_path):
+        parser = xml.sax.make_parser()
+        pom_data = PomHandler()
+        parser.setContentHandler(pom_data)
+        pom_file = open(pom_path, 'r')
+        parser.parse(pom_file)
+        pom_file.close()
+        return pom_data.get_project_name()
 
     '''
     An os.path.walk() visit function that expects as an arg an empty list.  
