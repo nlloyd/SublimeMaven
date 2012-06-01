@@ -3,6 +3,7 @@ import os
 import json
 import threading
 import xml.sax
+import string
 
 '''
 Borrowed from Package Control plugin.
@@ -40,7 +41,13 @@ class PomHandler(xml.sax.ContentHandler):
     groupId = None
     artifactId = None
 
-    def get_project_name(self):
+    def get_project_name(self, long_name = False):
+        if not long_name:
+            groupid_bits = self.groupId.split('.')
+            new_groupid = []
+            for bit in groupid_bits:
+                new_groupid.append(bit[0])
+            self.groupId = string.join(new_groupid, '.')
         return '%s:%s:PROJECT' % (self.groupId, self.artifactId)
 
     def startElement(self, name, attrs):
@@ -61,10 +68,11 @@ PomProjectGeneratorThread: walks a directory tree, searching for all
 pom.xml files and generating a project config view result from the findings
 '''
 class PomProjectGeneratorThread(threading.Thread):
-    def __init__(self, target_path, project_file_name, window):
+    def __init__(self, target_path, project_file_name, window, long_project_names = False):
         self.target_path = target_path
         self.window = window
         self.project_file_name = project_file_name
+        self.long_project_names = long_project_names
         threading.Thread.__init__(self)
 
     def run(self):
@@ -118,6 +126,9 @@ File is created as a new view and must be then saved if deemed suitable.
 class ImportMavenProjectsCommand(sublime_plugin.WindowCommand):
 
     def run(self, paths):
+        settings = sublime.load_settings('Preferences.sublime-settings')
+        long_project_names = settings.get('long_project_names', False)
+
         active_file = self.window.active_view().file_name()
         if len(paths) == 0 and active_file:
             if os.path.isfile(active_file):
@@ -129,7 +140,7 @@ class ImportMavenProjectsCommand(sublime_plugin.WindowCommand):
         _, project_file_name = os.path.split(paths[0])
         project_file_name = project_file_name + '.sublime-project'
 
-        thread = PomProjectGeneratorThread(paths[0], project_file_name, self.window)
+        thread = PomProjectGeneratorThread(paths[0], project_file_name, self.window, long_project_names)
         thread.start()
         ThreadProgress(thread, 'Generating %s' % project_file_name,
             'Finished generating %s' % project_file_name)

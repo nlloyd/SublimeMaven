@@ -5,6 +5,7 @@ Sublime Text 2 Plugin providing integration with the Apache Maven build and proj
 ## Features
 
 - Maven command execution via side bar menu, context menu, and command palette (available commands configurable, see below)
+- Sublime project file creation from a directory hierarchy with multiple pom files
 
 
 ## User Configuration
@@ -22,4 +23,10 @@ In your user preferences add an entry like the following with your own custom co
         { "caption": "Maven: Run clean test", "command": "maven", "args": {"paths": [], "goals": ["clean", "test"]} },
         { "caption": "Maven: Run clean install", "command": "maven", "args": {"paths": [], "goals": ["clean", "install"]} }
 	]
+</code></pre>
+
+For Sublime project configuration generation, the default names for each project is of the form ${shortenedGroupId}:${artifactId}:PROJECT where the ${shortenedGroupId} would be 'o.a.m.p' for a groupId 'org.apache.maven.plugin'.  Adding the following configuration will tell SublimeMaven to use the full groupId in project name generation:
+
+<pre><code>
+    "long_project_names": true
 </code></pre>
