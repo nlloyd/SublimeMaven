@@ -1,26 +1,10 @@
 import sublime, sublime_plugin
 import os
+from utils.mvn import pom
+reload(pom)
 
-'''
-Recursive call to find (and return) the nearest path in the current
-tree (searching up the path tree) to a pom.xml file.
-Returns None if we hit the root without hitting a pom.xml file.
-'''
-def find_nearest_pom(path):
-    cur_path = None
-    if os.path.isdir(path):
-        cur_path = path
-    else:
-        cur_path = os.path.dirname(path)
-
-    if os.path.isfile(os.path.join(cur_path, 'pom.xml')):
-        return cur_path
-    else:
-        parent,child = os.path.split(cur_path)
-        if len(child) == 0:
-            return None
-        else:
-            return find_nearest_pom(parent)
+settings = sublime.load_settings('Preferences.sublime-settings')
+m2_home = settings.get('m2_home', None)
 
 '''
 MavenCommand: executes Apache Maven on the command line.
@@ -30,17 +14,23 @@ class MavenCommand(sublime_plugin.WindowCommand):
     pomDir = None
     cmd = None
     last_run_goals = ['clean','install']
+    env = {}
 
     def run(self, paths, goals):
         self.window.active_view().erase_status('_mvn')
+        if m2_home:
+            self.env['M2_HOME'] = m2_home
         # on windows: use mvn.bat
         if os.name == 'nt':
             self.cmd = ['mvn.bat']
         else:
             self.cmd = ['mvn']
+        # add /usr/local/bin to the path (for some reason not present through sublime)
+        if os.name == 'posix':
+            self.env['PATH'] = os.environ['PATH'] + os.pathsep + '/usr/local/bin'
         if len(paths) == 0 and self.window.active_view().file_name():
             paths = [self.window.active_view().file_name()]
-        self.pomDir = find_nearest_pom(paths[0])
+        self.pomDir = pom.find_nearest_pom(paths[0])
         if not self.pomDir:
             self.window.active_view().set_status('_mvn', 'No pom.xml found for path ' + paths[0])
             return
@@ -58,10 +48,11 @@ class MavenCommand(sublime_plugin.WindowCommand):
             {
                 "cmd":self.cmd,
                 'working_dir':self.pomDir,
-                'file_regex':'^\\[ERROR\\] ([^:]+):\\[([0-9]+),([0-9]+)\\] (.*)'
+                'file_regex':'^\\[ERROR\\] ([^:]+):\\[([0-9]+),([0-9]+)\\] (.*)',
+                'env': self.env
             })
 
     def is_enabled(self, paths, goals):
         if len(paths) == 0 and self.window.active_view().file_name():
             paths = [self.window.active_view().file_name()]
-        return (len(paths) == 1) and (find_nearest_pom(paths[0]) != None)
+        return (len(paths) == 1) and (pom.find_nearest_pom(paths[0]) != None)
