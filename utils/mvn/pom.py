@@ -125,6 +125,7 @@ class PomProjectGeneratorThread(threading.Thread):
         self.result = { "folders": pom_paths }
 
         cp_threads = []
+        max_cp_thread_count = 4
 
         for project_entry in self.result['folders']:
             # generate project name
@@ -137,6 +138,14 @@ class PomProjectGeneratorThread(threading.Thread):
             cp_thread.start()
             # add pom_path/target/classes to classpath
             self.merged_classpath.add(os.path.join(project_entry['path'], 'target', 'classes'))
+            # make sure we dont overdo it with active thread count
+            if len(cp_threads) == max_cp_thread_count:
+                for cp_thread in cp_threads:
+                    # print 'waiting on cp_thread'
+                    cp_thread.join()
+                    # print cp_thread.classpath
+                    self.merged_classpath.update(cp_thread.classpath)
+                del cp_threads[:]
 
         # print len(cp_threads)
         for cp_thread in cp_threads:
