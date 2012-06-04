@@ -75,7 +75,12 @@ class MvnClasspathGrabbingThread(threading.Thread):
     def run(self):
         curdir = os.getcwd()
         os.chdir(self.pom_path)
-        mvn_proc = subprocess.Popen(['mvn','-N','dependency:build-classpath'], stdout=subprocess.PIPE, universal_newlines=True)
+        mvn = None
+        if os.name == 'nt':
+            mvn = 'mvn.bat'
+        else:
+            mvn = 'mvn'
+        mvn_proc = subprocess.Popen([mvn,'-N','dependency:build-classpath'], stdout=subprocess.PIPE, universal_newlines=True)
         mvn_output, mvn_err = mvn_proc.communicate()
         # print mvn_output
         os.chdir(curdir)
@@ -123,16 +128,16 @@ class PomProjectGeneratorThread(threading.Thread):
             # grab classpath entries
             cp_thread = MvnClasspathGrabbingThread(project_entry['path'])
             cp_threads.append(cp_thread)
-            # print 'starting cp thread for %s' % project_entry['path']
+            print 'starting cp thread for %s' % project_entry['path']
             cp_thread.start()
             # add pom_path/target/classes to classpath
             self.merged_classpath.add(os.path.join(project_entry['path'], 'target', 'classes'))
 
         # print len(cp_threads)
         for cp_thread in cp_threads:
-            # print 'waiting on cp_thread'
+            print 'waiting on cp_thread'
             cp_thread.join()
-            # print cp_thread.classpath
+            print cp_thread.classpath
             self.merged_classpath.update(cp_thread.classpath)
 
         self.result['settings'] = { 'sublimejava_classpath': list(self.merged_classpath) }
