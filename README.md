@@ -6,6 +6,7 @@ Sublime Text 2 Plugin providing integration with the Apache Maven build and proj
 
 - Maven command execution via side bar menu, context menu, and command palette (available commands configurable, see below)
 - Sublime project file creation from a directory hierarchy with multiple pom files
+- SublimeJava plugin integration: classpath generation for SublimeJava autocomplete plugin (classpath containing all unique dependencies across all maven projects in the selected directory hierarchy)
 
 
 ## User Configuration

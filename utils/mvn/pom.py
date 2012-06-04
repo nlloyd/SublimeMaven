@@ -62,6 +62,38 @@ class PomHandler(xml.sax.ContentHandler):
     def endElement(self, name):
         self.elements.pop()
 
+
+'''
+Use 'mvn -N dependency:build-classpath' to generate the classpath for the specified pom file
+'''
+class MvnClasspathGrabbingThread(threading.Thread):
+    def __init__(self, pom_path):
+        self.pom_path = pom_path
+        self.classpath = set()
+        threading.Thread.__init__(self)
+
+    def run(self):
+        curdir = os.getcwd()
+        os.chdir(self.pom_path)
+        mvn_proc = subprocess.Popen(['mvn','-N','dependency:build-classpath'], stdout=subprocess.PIPE, universal_newlines=True)
+        mvn_output, mvn_err = mvn_proc.communicate()
+        # print mvn_output
+        os.chdir(curdir)
+        cp_line = None
+        for line in StringIO(mvn_output):
+            not_cp_line = non_cp_mvn_output_pattern.match(line)
+            if not not_cp_line:
+                cp_line = line
+                break
+        # print '%s -- %s' % (pom_path, cp_line)
+        if cp_line:
+            jars = cp_line.split(os.pathsep)
+            for jar in jars:
+                self.classpath.add(jar.strip())
+        else:
+            print 'WARNING: no classpath found for pom file in path %s' % self.pom_path
+
+
 '''
 PomProjectGeneratorThread: walks a directory tree, searching for all
 pom.xml files and generating a project config view result from the findings
@@ -82,12 +114,24 @@ class PomProjectGeneratorThread(threading.Thread):
 
         self.result = { "folders": pom_paths }
 
+        cp_threads = []
+
         for project_entry in self.result['folders']:
             # generate project name
             project_entry['name'] = self.gen_project_name(os.path.join(project_entry['path'], 'pom.xml'))
             project_entry['folder_exclude_patterns'] = ['target']
             # grab classpath entries
-            self.grab_pom_classpath(project_entry['path'])
+            cp_thread = MvnClasspathGrabbingThread(project_entry['path'])
+            cp_threads.append(cp_thread)
+            # print 'starting cp thread for %s' % project_entry['path']
+            cp_thread.start()
+
+        # print len(cp_threads)
+        for cp_thread in cp_threads:
+            # print 'waiting on cp_thread'
+            cp_thread.join()
+            # print cp_thread.classpath
+            self.merged_classpath.update(cp_thread.classpath)
 
         self.result['settings'] = { 'sublimejava_classpath': list(self.merged_classpath) }
 
@@ -102,30 +146,6 @@ class PomProjectGeneratorThread(threading.Thread):
         parser.parse(pom_file)
         pom_file.close()
         return pom_data.get_project_name()
-
-    '''
-    Use 'mvn -N dependency:build-classpath' to generate the classpath for the specified pom file
-    '''
-    def grab_pom_classpath(self, pom_path):
-        curdir = os.getcwd()
-        os.chdir(pom_path)
-        mvn_proc = subprocess.Popen(['mvn','-N','dependency:build-classpath'], stdout=subprocess.PIPE, universal_newlines=True)
-        mvn_proc.wait()
-        mvn_output, mvn_err = mvn_proc.communicate()
-        os.chdir(curdir)
-        cp_line = None
-        for line in StringIO(mvn_output):
-            not_cp_line = non_cp_mvn_output_pattern.match(line)
-            if not not_cp_line:
-                cp_line = line
-                break
-        # print '%s -- %s' % (pom_path, cp_line)
-        if cp_line:
-            jars = cp_line.split(os.pathsep)
-            for jar in jars:
-                self.merged_classpath.add(jar.strip())
-        else:
-            print 'WARNING: no classpath found for pom file in path %s' % pom_path
 
     '''
     An os.path.walk() visit function that expects as an arg an empty list.  
