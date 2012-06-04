@@ -4,6 +4,11 @@ import json
 import threading
 import xml.sax
 import string
+import subprocess
+import re
+from StringIO import StringIO
+
+non_cp_mvn_output_pattern = re.compile('^\[[A-Z]+\] ')
 
 '''
 Recursive call to find (and return) the nearest path in the current
@@ -67,6 +72,7 @@ class PomProjectGeneratorThread(threading.Thread):
         self.window = window
         self.project_file_name = project_file_name
         self.long_project_names = long_project_names
+        self.merged_classpath = set()
         threading.Thread.__init__(self)
 
     def run(self):
@@ -77,8 +83,15 @@ class PomProjectGeneratorThread(threading.Thread):
         self.result = { "folders": pom_paths }
 
         for project_entry in self.result['folders']:
+            # generate project name
             project_entry['name'] = self.gen_project_name(os.path.join(project_entry['path'], 'pom.xml'))
+            project_entry['folder_exclude_patterns'] = ['target']
+            # grab classpath entries
+            self.grab_pom_classpath(project_entry['path'])
 
+        self.result['settings'] = { 'sublimejava_classpath': list(self.merged_classpath) }
+
+        # print self.merged_classpath
         sublime.set_timeout(lambda: self.publish_config_view(), 100)
 
     def gen_project_name(self, pom_path):
@@ -89,6 +102,30 @@ class PomProjectGeneratorThread(threading.Thread):
         parser.parse(pom_file)
         pom_file.close()
         return pom_data.get_project_name()
+
+    '''
+    Use 'mvn -N dependency:build-classpath' to generate the classpath for the specified pom file
+    '''
+    def grab_pom_classpath(self, pom_path):
+        curdir = os.getcwd()
+        os.chdir(pom_path)
+        mvn_proc = subprocess.Popen(['mvn','-N','dependency:build-classpath'], stdout=subprocess.PIPE, universal_newlines=True)
+        mvn_proc.wait()
+        mvn_output, mvn_err = mvn_proc.communicate()
+        os.chdir(curdir)
+        cp_line = None
+        for line in StringIO(mvn_output):
+            not_cp_line = non_cp_mvn_output_pattern.match(line)
+            if not not_cp_line:
+                cp_line = line
+                break
+        # print '%s -- %s' % (pom_path, cp_line)
+        if cp_line:
+            jars = cp_line.split(os.pathsep)
+            for jar in jars:
+                self.merged_classpath.add(jar.strip())
+        else:
+            print 'WARNING: no classpath found for pom file in path %s' % pom_path
 
     '''
     An os.path.walk() visit function that expects as an arg an empty list.  
