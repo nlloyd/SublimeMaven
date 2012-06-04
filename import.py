@@ -16,8 +16,8 @@ class ImportMavenProjectsCommand(sublime_plugin.WindowCommand):
         settings = sublime.load_settings('Preferences.sublime-settings')
         long_project_names = settings.get('long_project_names', False)
 
-        active_file = self.window.active_view().file_name()
-        if len(paths) == 0 and active_file:
+        if len(paths) == 0 and self.window.active_view().file_name():
+            active_file = self.window.active_view().file_name()
             if os.path.isfile(active_file):
                 paths = [os.path.dirname(active_file)]
             else:

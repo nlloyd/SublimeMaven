@@ -125,6 +125,8 @@ class PomProjectGeneratorThread(threading.Thread):
             cp_threads.append(cp_thread)
             # print 'starting cp thread for %s' % project_entry['path']
             cp_thread.start()
+            # add pom_path/target/classes to classpath
+            self.merged_classpath.add(os.path.join(project_entry['path'], 'target', 'classes'))
 
         # print len(cp_threads)
         for cp_thread in cp_threads:
