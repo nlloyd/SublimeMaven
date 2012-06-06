@@ -76,7 +76,17 @@ class MvnClasspathGrabbingThread(threading.Thread):
     def run(self):
         curdir = os.getcwd()
         os.chdir(self.pom_path)
-        mvn_proc = subprocess.Popen(['mvn','-N','dependency:build-classpath'], stdout=subprocess.PIPE, universal_newlines=True)
+        mvn = None
+        if os.name == 'nt':
+            mvn = 'mvn.bat'
+        else:
+            mvn = 'mvn'
+        # Hide the console window on Windows
+        startupinfo = None
+        if os.name == "nt":
+            startupinfo = subprocess.STARTUPINFO()
+            startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+        mvn_proc = subprocess.Popen([mvn,'-N','dependency:build-classpath'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, startupinfo=startupinfo, universal_newlines=True)
         mvn_output, mvn_err = mvn_proc.communicate()
         # print mvn_output
         os.chdir(curdir)
