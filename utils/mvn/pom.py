@@ -70,6 +70,7 @@ class MvnClasspathGrabbingThread(threading.Thread):
     def __init__(self, pom_path):
         self.pom_path = pom_path
         self.classpath = set()
+        self.dest_classpath = None
         threading.Thread.__init__(self)
 
     def run(self):
@@ -99,11 +100,12 @@ PomProjectGeneratorThread: walks a directory tree, searching for all
 pom.xml files and generating a project config view result from the findings
 '''
 class PomProjectGeneratorThread(threading.Thread):
-    def __init__(self, target_path, project_file_name, window, long_project_names = False):
+    def __init__(self, target_path, window, long_project_names = False, project_per_pom = False):
         self.target_path = target_path
         self.window = window
-        self.project_file_name = project_file_name
+        self.project_file_name = os.path.basename(target_path) + '.sublime-project'
         self.long_project_names = long_project_names
+        self.project_per_pom = project_per_pom
         self.merged_classpath = set()
         threading.Thread.__init__(self)
 
@@ -112,30 +114,68 @@ class PomProjectGeneratorThread(threading.Thread):
         pom_paths = []
         os.path.walk(self.target_path, self.find_pom_paths, pom_paths)
 
-        self.result = { "folders": pom_paths }
+        if self.project_per_pom:
+            self.result = []
+            for pom_path in pom_paths:
+                self.result.append({ "folders": [pom_path] })
+        else:
+            self.result = { "folders": pom_paths }
 
         cp_threads = []
+        finished_cp_threads = []
+        max_cp_threads = 4
 
-        for project_entry in self.result['folders']:
-            # generate project name
-            project_entry['name'] = self.gen_project_name(os.path.join(project_entry['path'], 'pom.xml'))
-            project_entry['folder_exclude_patterns'] = ['target']
-            # grab classpath entries
-            cp_thread = MvnClasspathGrabbingThread(project_entry['path'])
-            cp_threads.append(cp_thread)
-            # print 'starting cp thread for %s' % project_entry['path']
-            cp_thread.start()
-            # add pom_path/target/classes to classpath
-            self.merged_classpath.add(os.path.join(project_entry['path'], 'target', 'classes'))
+        if self.project_per_pom:
+            for project in self.result:
+                # generate project name
+                project['folders'][0]['name'] = self.gen_project_name(os.path.join(project['folders'][0]['path'], 'pom.xml'))
+                project['folders'][0]['folder_exclude_patterns'] = ['target']
+                # grab classpath entries
+                cp_thread = MvnClasspathGrabbingThread(project['folders'][0]['path'])
+                cp_threads.append(cp_thread)
+                cp_thread.start()
+                # add pom_path/target/classes to classpath
+                project['settings'] = { 'sublimejava_classpath': [
+                        os.path.join(project['folders'][0]['path'], 'target', 'classes'),
+                        os.path.join(project['folders'][0]['path'], 'target', 'test-classes')
+                    ] }
+                if len(cp_threads) == max_cp_threads:
+                    for cp_thread in cp_threads:
+                        cp_thread.join()
+                        finished_cp_threads.append(cp_thread)
+                    del cp_threads[:]
+        else:
+            for project_entry in self.result['folders']:
+                # generate project name
+                project_entry['name'] = self.gen_project_name(os.path.join(project_entry['path'], 'pom.xml'))
+                project_entry['folder_exclude_patterns'] = ['target']
+                # grab classpath entries
+                cp_thread = MvnClasspathGrabbingThread(project_entry['path'])
+                cp_threads.append(cp_thread)
+                # print 'starting cp thread for %s' % project_entry['path']
+                cp_thread.start()
+                self.merged_classpath.add(os.path.join(project_entry['path'], 'target', 'classes'))
+                self.merged_classpath.add(os.path.join(project_entry['path'], 'target', 'test-classes'))
+                if len(cp_threads) == max_cp_threads:
+                    for cp_thread in cp_threads:
+                        cp_thread.join()
+                        self.merged_classpath.update(cp_thread.classpath)
+                    del cp_threads[:]
 
         # print len(cp_threads)
         for cp_thread in cp_threads:
             # print 'waiting on cp_thread'
             cp_thread.join()
+            if self.project_per_pom:
+                finished_cp_threads.append(cp_thread)
             # print cp_thread.classpath
             self.merged_classpath.update(cp_thread.classpath)
 
-        self.result['settings'] = { 'sublimejava_classpath': list(self.merged_classpath) }
+        if not self.project_per_pom:
+            self.result['settings'] = { 'sublimejava_classpath': list(self.merged_classpath) }
+        else:
+            for idx in range(len(self.result)):
+                self.result[idx]['settings']['sublimejava_classpath'].extend(finished_cp_threads[idx].classpath)
 
         # print self.merged_classpath
         sublime.set_timeout(lambda: self.publish_config_view(), 100)
@@ -147,7 +187,7 @@ class PomProjectGeneratorThread(threading.Thread):
         pom_file = open(pom_path, 'r')
         parser.parse(pom_file)
         pom_file.close()
-        return pom_data.get_project_name()
+        return pom_data.get_project_name(self.long_project_names)
 
     '''
     An os.path.walk() visit function that expects as an arg an empty list.  
@@ -166,8 +206,16 @@ class PomProjectGeneratorThread(threading.Thread):
                 names.remove(name)
 
     def publish_config_view(self):
-        project_view = self.window.new_file()
-        project_edit = project_view.begin_edit()
-        project_view.insert(project_edit, 0, json.dumps(self.result, indent = 4))
-        project_view.end_edit(project_edit)
-        project_view.set_name(self.project_file_name)
+        if self.project_per_pom:
+            for project in self.result:
+                project_file_path = os.path.join(project['folders'][0]['path'],
+                    os.path.basename(project['folders'][0]['path']) + '.sublime-project')
+                project_file = open(project_file_path, 'w+')
+                json.dump(project, project_file, indent = 4)
+                project_file.close()
+        else:
+            project_view = self.window.new_file()
+            project_edit = project_view.begin_edit()
+            project_view.insert(project_edit, 0, json.dumps(self.result, indent = 4))
+            project_view.end_edit(project_edit)
+            project_view.set_name(self.project_file_name)

@@ -11,10 +11,13 @@ ImportMavenProjectsCommand: creates a *.sublime-project file with folders added 
 File is created as a new view and must be then saved if deemed suitable.
 '''
 class ImportMavenProjectsCommand(sublime_plugin.WindowCommand):
+    long_project_names = None
+    project_per_pom = None
 
     def run(self, paths):
         settings = sublime.load_settings('Preferences.sublime-settings')
-        long_project_names = settings.get('long_project_names', False)
+        self.long_project_names = settings.get('long_project_names', None)
+        self.project_per_pom = settings.get('project_per_pom', None)
 
         if len(paths) == 0 and self.window.active_view().file_name():
             active_file = self.window.active_view().file_name()
@@ -24,10 +27,44 @@ class ImportMavenProjectsCommand(sublime_plugin.WindowCommand):
                 # pretty sure you can't edit a dir in this editor, but just in case...
                 paths = [active_file]
 
-        _, project_file_name = os.path.split(paths[0])
-        project_file_name = project_file_name + '.sublime-project'
+        self.target_path = paths[0]
+        if self.long_project_names == None:
+            self.window.show_quick_panel(['Short project names (default)', 'Long project names'], self.set_long_project_names)
+        elif self.project_per_pom == None:
+            self.window.show_quick_panel(['One large project file (default)', 'Project per pom.xml'], self.set_project_per_pom)
+        else:
+            self.run_project_generator()
 
-        thread = pom.PomProjectGeneratorThread(paths[0], project_file_name, self.window, long_project_names)
+    def set_long_project_names(self, idx):
+        # short project names are the default
+        if idx == 0:
+            self.long_project_names = False
+        elif idx == 1:
+            self.long_project_names = True
+        else:
+            return
+        if self.project_per_pom == None:
+            self.window.show_quick_panel(['One large project file (default)', 'Project per pom.xml'], self.set_project_per_pom)
+        else:
+            self.run_project_generator()
+
+    def set_project_per_pom(self, idx):
+        # one project file per pom file, default is false
+        if idx == 0:
+            self.project_per_pom = False
+        elif idx == 1:
+            self.project_per_pom = True
+        else:
+            return
+        self.run_project_generator()
+
+
+    def run_project_generator(self):
+        thread = pom.PomProjectGeneratorThread(self.target_path, self.window, self.long_project_names, self.project_per_pom)
         thread.start()
-        ui.ThreadProgress(thread, 'Generating %s' % project_file_name,
-            'Finished generating %s' % project_file_name)
+        progress_str = 'Generating project configuration file'
+        finished_str = 'Finished generating project configuration file'
+        if self.project_per_pom:
+            progress_str = progress_str + 's'
+            finished_str = finished_str + 's'
+        ui.ThreadProgress(thread, progress_str, finished_str)
