@@ -251,3 +251,4 @@ class PomProjectGeneratorThread(threading.Thread):
             project_view.insert(project_edit, 0, json.dumps(self.result, indent = 4))
             project_view.end_edit(project_edit)
             project_view.set_name(self.project_file_name)
+            project_view.set_scratch(True)
