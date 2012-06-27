@@ -1,7 +1,7 @@
 *.py[co]
 
 *.sublime-menu
-*.sublime-commands
+Generated.sublime-commands
 
 # Packages
 *.egg

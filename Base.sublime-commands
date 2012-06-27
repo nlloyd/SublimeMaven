@@ -1,0 +1,11 @@
+[
+    {
+        "caption": "Maven: Kill running process", 
+        "args": {
+            "paths": [], 
+            "goals": [],
+            "kill": true
+        }, 
+        "command": "maven"
+    }
+]

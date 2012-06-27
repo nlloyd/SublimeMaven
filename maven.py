@@ -192,10 +192,10 @@ class MavenCommand(sublime_plugin.WindowCommand, MavenProcessListener):
             if not self.quiet:
                 self.append_data(None, "[Finished]")
 
-    def is_enabled(self, paths, goals):
+    def is_enabled(self, paths, goals, kill = False):
         if len(paths) == 0 and self.window.active_view().file_name():
             paths = [self.window.active_view().file_name()]
-        return (len(paths) == 1) and (pom.find_nearest_pom(paths[0]) != None)
+        return ((len(paths) == 1) and (pom.find_nearest_pom(paths[0]) != None)) or kill
 
     def append_data(self, proc, data):
         if proc != self.proc:
