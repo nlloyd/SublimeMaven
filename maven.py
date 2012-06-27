@@ -22,59 +22,242 @@
 
 import sublime, sublime_plugin
 import os
+import sys
+import thread
+import functools
+import re
+import subprocess
 from utils.mvn import pom
 reload(pom)
 
 settings = sublime.load_settings('Preferences.sublime-settings')
 m2_home = settings.get('m2_home', None)
+# on windows: use mvn.bat
+maven_cmd = None
+if os.name == 'nt':
+    maven_cmd = ['mvn.bat']
+else:
+    maven_cmd = ['mvn']
+
+file_regex_pattern = '^\[ERROR\] ([A-Z]?[:]?[^\[]+):\[([0-9]+),([0-9]+)\] (.*)'
+nt_bad_file_regex_pattern = '^\[ERROR\] ([A-Z]{0}[:]{0}[^\:]+\.java)(.*)$'
+# pattern matching windows file path WITHOUT drive letter
+# nt_bad_file_regex_pattern = re.compile('(.*\n\[ERROR\] )([A-Z]{0}[:]{0}[^\:]+\.java)(.*)')
+
+'''
+Adapted from Default/exec.py with specific modifications
+for the mvn process.
+'''
+class MavenProcessListener(object):
+    def on_data(self, proc, data):
+        pass
+
+    def on_finished(self, proc):
+        pass
+
+'''
+Encapsulates subprocess.Popen, forwarding stdout to a supplied
+MavenProcessListener (on a separate thread)
+'''
+class AsyncMavenProcess(object):
+    def __init__(self, listener, goals_and_such):
+
+        self.listener = listener
+        self.killed = False
+
+        # Hide the console window on Windows
+        startupinfo = None
+        if os.name == "nt":
+            startupinfo = subprocess.STARTUPINFO()
+            startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+
+        env = {}
+        if m2_home:
+            env['M2_HOME'] = m2_home
+        # add /usr/local/bin to the path (for some reason not present through sublime)
+        if os.name == 'posix':
+            env['PATH'] = os.environ['PATH'] + os.pathsep + '/usr/local/bin'
+
+        proc_env = os.environ.copy()
+        proc_env.update(env)
+        for k, v in proc_env.iteritems():
+            proc_env[k] = os.path.expandvars(v).encode(sys.getfilesystemencoding())
+
+        cmd_list = maven_cmd[:]
+        cmd_list += goals_and_such
+        self.proc = subprocess.Popen(cmd_list, stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE, startupinfo=startupinfo, env=proc_env, shell=False)
+
+        if self.proc.stdout:
+            thread.start_new_thread(self.read_stdout, ())
+
+        if self.proc.stderr:
+            thread.start_new_thread(self.read_stderr, ())
+
+    def kill(self):
+        if not self.killed:
+            self.killed = True
+            self.proc.kill()
+            self.listener = None
+
+    def poll(self):
+        return self.proc.poll() == None
+
+    def read_stdout(self):
+        while True:
+            data = os.read(self.proc.stdout.fileno(), 2**15)
+
+            if data != "":
+                if self.listener:
+                    self.listener.on_data(self, data)
+            else:
+                self.proc.stdout.close()
+                if self.listener:
+                    self.listener.on_finished(self)
+                break
+
+    def read_stderr(self):
+        while True:
+            data = os.read(self.proc.stderr.fileno(), 2**15)
+
+            if data != "":
+                if self.listener:
+                    self.listener.on_data(self, data)
+            else:
+                self.proc.stderr.close()
+                break
 
 '''
 MavenCommand: executes Apache Maven on the command line.
 Will only be visible if the path argument given is part of a maven project (pom.xml in the current or a parent directory).
 '''
-class MavenCommand(sublime_plugin.WindowCommand):
+class MavenCommand(sublime_plugin.WindowCommand, MavenProcessListener):
     pomDir = None
     cmd = None
     last_run_goals = ['clean','install']
     env = {}
+    proc = None
 
-    def run(self, paths, goals):
-        self.window.active_view().erase_status('_mvn')
-        if m2_home:
-            self.env['M2_HOME'] = m2_home
-        # on windows: use mvn.bat
-        if os.name == 'nt':
-            self.cmd = ['mvn.bat']
-        else:
-            self.cmd = ['mvn']
-        # add /usr/local/bin to the path (for some reason not present through sublime)
-        if os.name == 'posix':
-            self.env['PATH'] = os.environ['PATH'] + os.pathsep + '/usr/local/bin'
+    def run(self, paths, goals, kill = False):
+        if self.window.active_view():
+            self.window.active_view().erase_status('_mvn')
+
+        if kill:
+            if self.proc:
+                self.proc.kill()
+                self.proc = None
+                self.append_data(None, "[Cancelled]")
+            return
+
         if len(paths) == 0 and self.window.active_view().file_name():
             paths = [self.window.active_view().file_name()]
         self.pomDir = pom.find_nearest_pom(paths[0])
         if not self.pomDir:
             self.window.active_view().set_status('_mvn', 'No pom.xml found for path ' + paths[0])
             return
+
+        if not hasattr(self, 'output_view'):
+            # Try not to call get_output_panel until the regexes are assigned
+            self.output_view = self.window.get_output_panel("exec")
+
+        self.output_view.settings().set("result_file_regex", file_regex_pattern)
+        self.output_view.settings().set("result_base_dir", self.pomDir)
+
+        # Call get_output_panel a second time after assigning the above
+        # settings, so that it'll be picked up as a result buffer
+        self.window.get_output_panel("exec")
+
         if len(goals) == 0:
-            self.window.show_input_panel('mvn',' '.join(self.last_run_goals),self.on_done,None,None)
+            self.window.show_input_panel('mvn',' '.join(self.last_run_goals), self.on_done, None, None)
         else:
             self.last_run_goals = goals
             self.on_done(' '.join(self.last_run_goals))
 
     def on_done(self, text):
+        self.window.run_command("show_panel", {"panel": "output.exec"})
+
+        if self.pomDir:
+            os.chdir(self.pomDir)
+
         self.last_run_goals = text.split(' ')
-        # self.cmd += [u'-B']
-        self.cmd += self.last_run_goals
-        self.window.run_command("exec",
-            {
-                "cmd":self.cmd,
-                'working_dir':self.pomDir,
-                'file_regex':'^\\[ERROR\\] ([^:]+):\\[([0-9]+),([0-9]+)\\] (.*)',
-                'env': self.env
-            })
+
+        err_type = OSError
+        if os.name == "nt":
+            err_type = WindowsError
+
+        try:
+            self.proc = AsyncMavenProcess(self, self.last_run_goals)
+        except err_type as e:
+            self.append_data(None, str(e) + "\n")
+            if not self.quiet:
+                self.append_data(None, "[Finished]")
 
     def is_enabled(self, paths, goals):
         if len(paths) == 0 and self.window.active_view().file_name():
             paths = [self.window.active_view().file_name()]
         return (len(paths) == 1) and (pom.find_nearest_pom(paths[0]) != None)
+
+    def append_data(self, proc, data):
+        if proc != self.proc:
+            # a second call to exec has been made before the first one
+            # finished, ignore it instead of intermingling the output.
+            if proc:
+                proc.kill()
+            return
+
+        try:
+            str = data.decode("utf-8")
+        except:
+            str = "[Decode error - output not utf-8]"
+            proc = None
+
+        # Normalize newlines, Sublime Text always uses a single \n separator
+        # in memory.
+        str = str.replace('\r\n', '\n').replace('\r', '\n')
+
+        # because for some reason on win boxes maven strips the drive letters from the path
+        # ... or maybe its just if you have cygwin installed...
+        # if os.name == "nt":
+        #     drive_letter = self.pomDir[0]
+        #     str = nt_bad_file_regex_pattern.sub(r'\1%s:\2\3' % drive_letter, str)
+
+        self.output_view.set_read_only(False)
+        edit = self.output_view.begin_edit()
+        self.output_view.insert(edit, self.output_view.size(), str)
+        self.output_view.end_edit(edit)
+
+        if os.name == 'nt':
+            bad_nt_path_region = self.output_view.find(nt_bad_file_regex_pattern, 0)
+            if bad_nt_path_region:
+                edit = self.output_view.begin_edit()
+                self.output_view.insert(edit, (bad_nt_path_region.begin() + 8), (self.pomDir[0] + ':'))
+                self.output_view.end_edit(edit)
+
+        self.output_view.set_read_only(True)
+
+        self.output_view.show(self.output_view.size())
+        # sublime.set_timeout(lambda: self.delayed_output_follow, 10)
+
+    def delayed_output_follow():
+        self.output_view.show(self.output_view.size())
+
+    def print_last_str():
+        print self.last_str
+
+    def finish(self, proc):
+        self.append_data(proc, "[Finished]")
+        if proc != self.proc:
+            return
+
+        self.output_view.show(self.output_view.size())
+        # Set the selection to the start, so that next_result will work as expected
+        edit = self.output_view.begin_edit()
+        self.output_view.sel().clear()
+        self.output_view.sel().add(sublime.Region(0))
+        self.output_view.end_edit(edit)
+
+    def on_data(self, proc, data):
+        sublime.set_timeout(functools.partial(self.append_data, proc, data), 0)
+
+    def on_finished(self, proc):
+        sublime.set_timeout(functools.partial(self.finish, proc), 0)
