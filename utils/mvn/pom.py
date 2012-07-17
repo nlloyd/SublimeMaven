@@ -120,6 +120,7 @@ class MvnClasspathGrabbingThread(threading.Thread):
                 break
         # print '%s -- %s' % (pom_path, cp_line)
         if cp_line:
+            self.raw_classpath = cp_line
             jars = cp_line.split(os.pathsep)
             for jar in jars:
                 self.classpath.add(jar.strip())
@@ -139,6 +140,7 @@ class PomProjectGeneratorThread(threading.Thread):
         self.long_project_names = long_project_names
         self.project_per_pom = project_per_pom
         self.merged_classpath = set()
+        self.classpaths_by_path = {}
         threading.Thread.__init__(self)
 
     def run(self):
@@ -200,6 +202,7 @@ class PomProjectGeneratorThread(threading.Thread):
                     for cp_thread in cp_threads:
                         cp_thread.join()
                         self.merged_classpath.update(cp_thread.classpath)
+                    self.classpaths_by_path[cp_thread.pom_path] = cp_thread.raw_classpath
                     del cp_threads[:]
 
         # print len(cp_threads)
@@ -212,7 +215,10 @@ class PomProjectGeneratorThread(threading.Thread):
             self.merged_classpath.update(cp_thread.classpath)
 
         if not self.project_per_pom:
-            self.result['settings'] = { 'sublimejava_classpath': list(self.merged_classpath) }
+            self.result['settings'] = {
+                    'sublimejava_classpath': list(self.merged_classpath),
+                    'sublimejava_classpaths': self.classpaths_by_path
+                }
         else:
             for idx in range(len(self.result)):
                 self.result[idx]['settings']['sublimejava_classpath'].extend(finished_cp_threads[idx].classpath)
