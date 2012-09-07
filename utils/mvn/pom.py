@@ -161,7 +161,7 @@ class PomProjectGeneratorThread(threading.Thread):
             for project in self.result:
                 # generate project name
                 project['folders'][0]['name'] = self.gen_project_name(os.path.join(project['folders'][0]['path'], 'pom.xml'))
-                project['folders'][0]['folder_exclude_patterns'] = ['target']
+                # project['folders'][0]['folder_exclude_patterns'] = ['target']
                 # grab classpath entries
                 cp_thread = MvnClasspathGrabbingThread(project['folders'][0]['path'])
                 cp_threads.append(cp_thread)
@@ -187,7 +187,7 @@ class PomProjectGeneratorThread(threading.Thread):
                 # generate project entry
                 project_entry = name_and_path[1]
                 project_entry['name'] = name_and_path[0]
-                project_entry['folder_exclude_patterns'] = ['target']
+                # project_entry['folder_exclude_patterns'] = ['target']
                 self.result['folders'].append(project_entry)
                 # grab classpath entries
                 cp_thread = MvnClasspathGrabbingThread(project_entry['path'])
