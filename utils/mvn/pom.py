@@ -24,11 +24,20 @@ import sublime
 import os
 import json
 import threading
-import xml.sax
 import string
 import subprocess
 import re
 from StringIO import StringIO
+
+__file__ = os.path.normpath(os.path.abspath(__file__))
+libs_path = os.path.dirname(os.path.dirname(__file__))
+if libs_path not in sys.path:
+    sys.path.insert(0, libs_path)
+
+from xml.etree import ElementTree
+from elementtree import SimpleXMLTreeBuilder
+
+ElementTree.TreeBuilder = SimpleXMLTreeBuilder.TreeBuilder
 
 non_cp_mvn_output_pattern = re.compile('^\[[A-Z]+\] ')
 
@@ -221,6 +230,7 @@ class PomProjectGeneratorThread(threading.Thread):
         sublime.set_timeout(lambda: self.publish_config_view(), 100)
 
     def gen_project_name(self, pom_path):
+        # pom_tree = ElementTree.parse(pom_path)
         parser = xml.sax.make_parser()
         pom_data = PomHandler()
         parser.setContentHandler(pom_data)
