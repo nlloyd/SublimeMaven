@@ -42,23 +42,6 @@ For Sublime project configuration generation, the default names for each project
 }
 </code></pre>
 
-## Troubleshooting
-
-### Issue #9: Problem when generating projects from pom
-The necessary python libraries for xml parsing are not supplied with the packaged python release within the Linux distribution of Sublime Text 2.  The solution to this was discovered by the <a href="https://github.com/Kindari/SublimeXdebug">SublimeXdebug plugin</a>.  Solution copy-pasted below:
-
-To fix the xml.sax module errors in Ubuntu you might need to do the following because Ubuntu stopped shipping Python 2.6 libraries a long time ago:
-
-  $ sudo apt-get install python2.6
-  $ ln -s /usr/lib/python2.6 [Sublime Text dir]/lib/
-
-On Ubuntu 12.04, Python 2.6 isn't available, so here's what worked for me:
-
-- Download python2.6 files from <a href="http://packages.ubuntu.com/lucid/python2.6">Ubuntu Archives</a>
-- Extract the files: dpkg-deb -x python2.6_2.6.5-1ubuntu6_i386.deb python2.6
-- Copy the extracted usr/lib/python2.6 folder to {Sublime Text directory}/lib
-
-
 ## License
 
 All of SublimeMaven is licensed under the MIT license.
