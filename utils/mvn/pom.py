@@ -21,16 +21,21 @@
 #   THE SOFTWARE.
 
 import sublime
-import os
-import json
-import threading
-import xml.sax
-import string
-import subprocess
-import re
+import os, json, threading, string, subprocess, re, sys
 from StringIO import StringIO
 
+__file__ = os.path.normpath(os.path.abspath(__file__))
+libs_path = os.path.dirname(os.path.dirname(__file__))
+if libs_path not in sys.path:
+    sys.path.insert(0, libs_path)
+
+from xml.etree import ElementTree
+from elementtree import SimpleXMLTreeBuilder
+
+ElementTree.XMLTreeBuilder = SimpleXMLTreeBuilder.TreeBuilder
+
 non_cp_mvn_output_pattern = re.compile('^\[[A-Z]+\] ')
+namespace_tagname_pattern = re.compile('^\{.+\}([a-zA-Z0-9\-\_\.]+)$')
 
 '''
 Recursive call to find (and return) the nearest path in the current
@@ -53,10 +58,33 @@ def find_nearest_pom(path):
         else:
             return find_nearest_pom(parent)
 
-class PomHandler(xml.sax.ContentHandler):
-    elements = []
-    groupId = None
-    artifactId = None
+class PomHandler(object):
+
+    def __init__(self):
+        self.elementsQueue = []
+        self.groupId = None
+        self.artifactId = None
+
+    # a little messy but does the job since xml.sax isnt really an option
+    def parse(self, pom_file):
+        pom_tree = ElementTree.parse(pom_file)
+        for node in pom_tree.getroot():
+            tag_name_match = namespace_tagname_pattern.match(node.tag)
+            if tag_name_match:
+                tag_name = tag_name_match.group(1)
+                if tag_name == 'groupId':
+                    self.groupId = node.text
+                elif tag_name == 'artifactId':
+                    self.artifactId = node.text
+                elif tag_name == 'parent':
+                    # get the parent groupId, default for child if child doesnt have groupId set
+                    for child in node:
+                        tag_name_match = namespace_tagname_pattern.match(child.tag)
+                        if tag_name_match:
+                            tag_name = tag_name_match.group(1)
+                            if tag_name == 'groupId':
+                                if self.groupId == None:
+                                    self.groupId = child.text
 
     def get_project_name(self, long_name = False):
         if not long_name:
@@ -66,23 +94,6 @@ class PomHandler(xml.sax.ContentHandler):
                 new_groupid.append(bit[0])
             self.groupId = string.join(new_groupid, '.')
         return '%s:%s:PROJECT' % (self.groupId, self.artifactId)
-
-    def startElement(self, name, attrs):
-        self.elements.append(name)
-
-    def characters(self, content):
-        # grab parent groupId first as child groupId defaults to parent if not present
-        if len(self.elements) == 3:
-            if self.elements[-1] == 'groupId':
-                self.groupId = content
-        elif len(self.elements) == 2:
-            if self.elements[-1] == 'groupId':
-                self.groupId = content
-            elif self.elements[-1] == 'artifactId':
-                self.artifactId = content
-
-    def endElement(self, name):
-        self.elements.pop()
 
 
 '''
@@ -221,13 +232,9 @@ class PomProjectGeneratorThread(threading.Thread):
         sublime.set_timeout(lambda: self.publish_config_view(), 100)
 
     def gen_project_name(self, pom_path):
-        parser = xml.sax.make_parser()
-        pom_data = PomHandler()
-        parser.setContentHandler(pom_data)
-        pom_file = open(pom_path, 'r')
-        parser.parse(pom_file)
-        pom_file.close()
-        return pom_data.get_project_name(self.long_project_names)
+        pom_handler = PomHandler()
+        pom_handler.parse(pom_path)
+        return pom_handler.get_project_name(self.long_project_names)
 
     '''
     An os.path.walk() visit function that expects as an arg an empty list.  
