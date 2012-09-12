@@ -79,7 +79,7 @@ class PomHandler(object):
                 elif tag_name == 'parent':
                     # get the parent groupId, default for child if child doesnt have groupId set
                     for child in node:
-                        tag_name_match = namespace_tagname_pattern.match(node.tag)
+                        tag_name_match = namespace_tagname_pattern.match(child.tag)
                         if tag_name_match:
                             tag_name = tag_name_match.group(1)
                             if tag_name == 'groupId':
