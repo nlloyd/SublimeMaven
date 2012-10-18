@@ -81,7 +81,7 @@ class AsyncMavenProcess(object):
         proc_env = os.environ.copy()
         proc_env.update(env)
         for k, v in proc_env.iteritems():
-            proc_env[k] = os.path.expandvars(v).encode(sys.getfilesystemencoding())
+            proc_env[k] = os.path.expandvars(v.decode(sys.getfilesystemencoding())).encode(sys.getfilesystemencoding())
 
         cmd_list = maven_cmd[:]
         cmd_list += goals_and_such
