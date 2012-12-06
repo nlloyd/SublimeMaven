@@ -34,6 +34,8 @@ def generate_config():
         [
             { "caption": "Maven: Run install", "command": "maven", "args": {"paths": [], "goals": ["install"]} },
             { "caption": "Maven: Run clean install", "command": "maven", "args": {"paths": [], "goals": ["clean", "install"]} },
+            { "caption": "Maven: Test", "command": "maven", "args": {"paths": [], "goals": ["test"], "props": ["-DskipTests=false", "-Dtest=$CLASS"]} },
+            { "caption": "Maven: Exec:java", "command": "maven", "args": {"paths": [], "goals": ["compile", "exec:java"], "props": ["-Dexec.mainClass=$CLASS"]} },
             { "caption": "Maven: Run ...", "command": "maven", "args": {"paths": [], "goals": []} }
         ])
 
