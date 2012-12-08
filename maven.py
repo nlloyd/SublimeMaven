@@ -138,7 +138,7 @@ class MavenCommand(sublime_plugin.WindowCommand, MavenProcessListener):
     env = {}
     proc = None
 
-    def run(self, paths, goals, kill = False):
+    def run(self, paths, goals, props = None, kill = False):
         if self.window.active_view():
             self.window.active_view().erase_status('_mvn')
 
@@ -171,7 +171,21 @@ class MavenCommand(sublime_plugin.WindowCommand, MavenProcessListener):
             self.window.show_input_panel('mvn',' '.join(self.last_run_goals), self.on_done, None, None)
         else:
             self.last_run_goals = goals
+            if props:
+                self.last_run_goals += [ self.replace_class(prop) for prop in props ]
             self.on_done(' '.join(self.last_run_goals))
+
+    def replace_class(self, str):
+        if str.count('$CLASS') == 0:
+            return str
+
+        main_class = self.get_current_java_class()
+        if main_class is None:
+            err_msg = 'Current view is not a valid Java class'
+            sublime.error_message(err_msg)
+            raise Exception(err_msg)
+
+        return str.replace('$CLASS', main_class)
 
     def on_done(self, text):
         self.window.run_command("show_panel", {"panel": "output.exec"})
@@ -192,7 +206,7 @@ class MavenCommand(sublime_plugin.WindowCommand, MavenProcessListener):
             if not self.quiet:
                 self.append_data(None, "[Finished]")
 
-    def is_enabled(self, paths, goals, kill = False):
+    def is_enabled(self, paths, goals, props = None, kill = False):
         if len(paths) == 0 and self.window.active_view().file_name():
             paths = [self.window.active_view().file_name()]
         return ((len(paths) == 1) and (pom.find_nearest_pom(paths[0]) != None)) or kill
@@ -261,3 +275,18 @@ class MavenCommand(sublime_plugin.WindowCommand, MavenProcessListener):
 
     def on_finished(self, proc):
         sublime.set_timeout(functools.partial(self.finish, proc), 0)
+
+    def get_current_java_class(self):
+        view = sublime.active_window().active_view()
+        data = view.substr(sublime.Region(0, view.size()))
+
+        this_class = re.search("public[ \t]*class[ \t]*(\w+)", data)
+
+        if this_class is not None:
+            this_class = this_class.group(1)
+
+            this_package = re.search("[ \t]*package (.*);", data)
+            if this_package is not None:
+                this_class = this_package.group(1)+"."+this_class
+
+        return this_class
