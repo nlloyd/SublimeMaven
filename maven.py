@@ -193,7 +193,7 @@ class MavenCommand(sublime_plugin.WindowCommand, MavenProcessListener):
         if self.pomDir:
             os.chdir(self.pomDir)
 
-        self.last_run_goals = text.split(' ')
+        self.last_run_goals = ' '.join(text.split()).split()
 
         err_type = OSError
         if os.name == "nt":
