@@ -30,14 +30,19 @@ import subprocess
 from utils.mvn import pom
 reload(pom)
 
-settings = sublime.load_settings('Preferences.sublime-settings')
-m2_home = settings.get('m2_home', None)
-# on windows: use mvn.bat
-maven_cmd = None
-if os.name == 'nt':
-    maven_cmd = ['mvn.bat']
-else:
-    maven_cmd = ['mvn']
+# This is just an example.  Adjust as desired.
+settings = sublime.load_settings('Maven')
+
+def get_setting(name, default=None):
+   v = settings.get(name)
+   if v == None:
+      try:
+         return sublime.active_window().active_view().settings().get(name, default)
+      except AttributeError:
+         # No view defined.
+         return default
+   else:
+      return v
 
 file_regex_pattern = '^\[ERROR\] ([A-Z]?[:]?[^\[]+):\[([0-9]+),([0-9]+)\] (.*)'
 nt_bad_file_regex_pattern = '^\[ERROR\] ([A-Z]{0}[:]{0}[^\:]+\.java)(.*)$'
@@ -71,6 +76,9 @@ class AsyncMavenProcess(object):
             startupinfo = subprocess.STARTUPINFO()
             startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
 
+        m2_settings = get_setting('m2_settings')
+        m2_home = get_setting('m2_home')
+
         env = {}
         if m2_home:
             env['M2_HOME'] = m2_home
@@ -83,7 +91,21 @@ class AsyncMavenProcess(object):
         for k, v in proc_env.iteritems():
             proc_env[k] = os.path.expandvars(v.decode(sys.getfilesystemencoding())).encode(sys.getfilesystemencoding())
 
+        # on windows: use mvn.bat
+        maven_cmd = None
+        if os.name == 'nt':
+            maven_cmd = ['mvn.bat']
+        else:
+            maven_cmd = ['mvn']
+
+        if m2_home:
+            maven_cmd[0] = m2_home + '/bin/' + maven_cmd[0]
+
         cmd_list = maven_cmd[:]
+
+        if m2_settings:
+            cmd_list += ["-s"]
+            cmd_list += [m2_settings]
         cmd_list += goals_and_such
         self.proc = subprocess.Popen(cmd_list, stdout=subprocess.PIPE,
             stderr=subprocess.PIPE, startupinfo=startupinfo, env=proc_env, shell=False)
@@ -137,6 +159,7 @@ class MavenCommand(sublime_plugin.WindowCommand, MavenProcessListener):
     last_run_goals = ['clean','install']
     env = {}
     proc = None
+    quiet = False
 
     def run(self, paths, goals, props = None, kill = False):
         if self.window.active_view():
