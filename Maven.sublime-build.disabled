@@ -1,0 +1,5 @@
+{
+	"target": "maven",
+	"selector":"source.scala|source.java",
+    "paths": [], "goals": ["test-compile"]
+}
