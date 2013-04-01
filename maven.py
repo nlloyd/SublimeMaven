@@ -30,8 +30,7 @@ import subprocess
 from utils.mvn import pom
 reload(pom)
 
-# This is just an example.  Adjust as desired.
-settings = sublime.load_settings('Maven')
+settings = sublime.load_settings('Maven.sublime-settings')
 
 def get_setting(name, default=None):
    v = settings.get(name)
