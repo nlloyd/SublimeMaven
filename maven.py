@@ -20,17 +20,37 @@
 #   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 #   THE SOFTWARE.
 
-import sublime, sublime_plugin
 import os
 import sys
-import thread
+import threading
 import functools
 import re
 import subprocess
-from utils.mvn import pom
-reload(pom)
+import sublime
+import sublime_plugin
 
-settings = sublime.load_settings('Maven.sublime-settings')
+__file__ = os.path.normpath(os.path.abspath(__file__))
+__path__ = os.path.dirname(__file__)
+# if we are sublime text 2, include libs dir on the path
+sublime_version = int(sublime.version())
+if (sublime_version >= 2000) and (sublime_version < 3000):
+    libs_path = os.path.join(__path__, 'libs')
+    if libs_path not in sys.path:
+        sys.path.insert(0, libs_path)
+
+from SublimeMaven.utils.mvn import pom
+# reload(pom)
+
+settings = None
+
+
+def plugin_loaded():
+    """
+    Called when the plugin is loaded and the API is ready to be used.
+    """
+    global settings
+    settings = sublime.load_settings('Maven.sublime-settings')
+
 
 def get_setting(name, default=None):
    v = settings.get(name)
@@ -42,6 +62,7 @@ def get_setting(name, default=None):
          return default
    else:
       return v
+
 
 file_regex_pattern = '^\[ERROR\] ([A-Z]?[:]?[^\[]+):\[([0-9]+),([0-9]+)\] (.*)'
 nt_bad_file_regex_pattern = '^\[ERROR\] ([A-Z]{0}[:]{0}[^\:]+\.java)(.*)$'
@@ -87,7 +108,7 @@ class AsyncMavenProcess(object):
 
         proc_env = os.environ.copy()
         proc_env.update(env)
-        for k, v in proc_env.iteritems():
+        for k, v in proc_env.items():
             proc_env[k] = os.path.expandvars(v.decode(sys.getfilesystemencoding())).encode(sys.getfilesystemencoding())
 
         # on windows: use mvn.bat
@@ -110,10 +131,12 @@ class AsyncMavenProcess(object):
             stderr=subprocess.PIPE, startupinfo=startupinfo, env=proc_env, shell=False)
 
         if self.proc.stdout:
-            thread.start_new_thread(self.read_stdout, ())
+            threading.Thread(target=self.read_stdout).start()
+            # thread.start_new_thread(self.read_stdout, ())
 
         if self.proc.stderr:
-            thread.start_new_thread(self.read_stderr, ())
+            threading.Thread(target=self.read_stderr).start()
+            # thread.start_new_thread(self.read_stderr, ())
 
     def kill(self):
         if not self.killed:
@@ -173,7 +196,7 @@ class MavenCommand(sublime_plugin.WindowCommand, MavenProcessListener):
 
         if len(paths) == 0 and self.window.active_view().file_name():
             paths = [self.window.active_view().file_name()]
-        self.pomDir = pom.find_nearest_pom(paths[0])
+        # self.pomDir = pom.find_nearest_pom(paths[0])
         if not self.pomDir:
             self.window.active_view().set_status('_mvn', 'No pom.xml found for path ' + paths[0])
             return
@@ -278,7 +301,7 @@ class MavenCommand(sublime_plugin.WindowCommand, MavenProcessListener):
         self.output_view.show(self.output_view.size())
 
     def print_last_str():
-        print self.last_str
+        print((self.last_str))
 
     def finish(self, proc):
         self.append_data(proc, "[Finished]")

@@ -20,19 +20,18 @@
 #   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 #   THE SOFTWARE.
 
-import sublime
-import os, json, threading, string, subprocess, re, sys
-from StringIO import StringIO
-
-__file__ = os.path.normpath(os.path.abspath(__file__))
-libs_path = os.path.dirname(os.path.dirname(__file__))
-if libs_path not in sys.path:
-    sys.path.insert(0, libs_path)
+import os, json, threading, string, subprocess, re
+from io import StringIO
 
 from xml.etree import ElementTree
-from elementtree import SimpleXMLTreeBuilder
 
-ElementTree.XMLTreeBuilder = SimpleXMLTreeBuilder.TreeBuilder
+import sublime
+
+# if we are sublime text 2, we need to configure ElementTree properly
+sublime_version = int(sublime.version())
+if (sublime_version >= 2000) and (sublime_version < 3000):
+    from elementtree import SimpleXMLTreeBuilder
+    ElementTree.XMLTreeBuilder = SimpleXMLTreeBuilder.TreeBuilder
 
 non_cp_mvn_output_pattern = re.compile('^\[[A-Z]+\] ')
 namespace_tagname_pattern = re.compile('^\{.+\}([a-zA-Z0-9\-\_\.]+)$')
@@ -135,7 +134,7 @@ class MvnClasspathGrabbingThread(threading.Thread):
             for jar in jars:
                 self.classpath.add(jar.strip())
         else:
-            print 'WARNING: no classpath found for pom file in path %s' % self.pom_path
+            print(('WARNING: no classpath found for pom file in path %s' % self.pom_path))
 
 
 '''
@@ -143,6 +142,8 @@ PomProjectGeneratorThread: walks a directory tree, searching for all
 pom.xml files and generating a project config view result from the findings
 '''
 class PomProjectGeneratorThread(threading.Thread):
+
+
     def __init__(self, target_path, window, long_project_names = False, project_per_pom = False):
         self.target_path = target_path
         self.window = window
@@ -152,10 +153,11 @@ class PomProjectGeneratorThread(threading.Thread):
         self.merged_classpath = set()
         threading.Thread.__init__(self)
 
+
     def run(self):
         self.result = None
         pom_paths = []
-        os.path.walk(self.target_path, self.find_pom_paths, pom_paths)
+        os.walk(self.target_path, self.find_pom_paths, pom_paths)
 
         if self.project_per_pom:
             self.result = []
@@ -231,10 +233,12 @@ class PomProjectGeneratorThread(threading.Thread):
         # print self.merged_classpath
         sublime.set_timeout(lambda: self.publish_config_view(), 100)
 
+
     def gen_project_name(self, pom_path):
         pom_handler = PomHandler()
         pom_handler.parse(pom_path)
         return pom_handler.get_project_name(self.long_project_names)
+
 
     '''
     An os.path.walk() visit function that expects as an arg an empty list.  
@@ -252,18 +256,18 @@ class PomProjectGeneratorThread(threading.Thread):
             if name[0] == '.' or name == 'target':
                 names.remove(name)
 
+
     def publish_config_view(self):
         if self.project_per_pom:
             for project in self.result:
                 project_file_path = os.path.join(project['folders'][0]['path'],
                     os.path.basename(project['folders'][0]['path']) + '.sublime-project')
                 project_file = open(project_file_path, 'w+')
-                json.dump(project, project_file, indent = 4)
+                json.dump(project, project_file, indent=4)
                 project_file.close()
         else:
             project_view = self.window.new_file()
-            project_edit = project_view.begin_edit()
-            project_view.insert(project_edit, 0, json.dumps(self.result, indent = 4))
-            project_view.end_edit(project_edit)
-            project_view.set_name(self.project_file_name)
-            project_view.set_scratch(True)
+            project_view.run_command('populate_project_file', {
+                'project_file_name': self.project_file_name,
+                'project_file_structure': self.result
+                })
