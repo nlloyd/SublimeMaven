@@ -183,7 +183,7 @@ class MavenCommand(sublime_plugin.WindowCommand, MavenProcessListener):
     proc = None
     quiet = False
 
-    def run(self, paths, goals, props = None, kill = False):
+    def run(self, paths, goals, props=None, kill=False):
         if self.window.active_view():
             self.window.active_view().erase_status('_mvn')
 
@@ -196,21 +196,21 @@ class MavenCommand(sublime_plugin.WindowCommand, MavenProcessListener):
 
         if len(paths) == 0 and self.window.active_view().file_name():
             paths = [self.window.active_view().file_name()]
-        # self.pomDir = pom.find_nearest_pom(paths[0])
+        self.pomDir = pom.find_nearest_pom(paths[0])
         if not self.pomDir:
             self.window.active_view().set_status('_mvn', 'No pom.xml found for path ' + paths[0])
             return
 
         if not hasattr(self, 'output_view'):
-            # Try not to call get_output_panel until the regexes are assigned
-            self.output_view = self.window.get_output_panel("exec")
+            # Try not to call create_output_panel until the regexes are assigned
+            self.output_view = self.window.create_output_panel("mvn_exec")
 
         self.output_view.settings().set("result_file_regex", file_regex_pattern)
         self.output_view.settings().set("result_base_dir", self.pomDir)
 
-        # Call get_output_panel a second time after assigning the above
+        # Call show_panel a second time after assigning the above
         # settings, so that it'll be picked up as a result buffer
-        self.window.get_output_panel("exec")
+        self.window.show_panel("output.mvn_exec")
 
         if len(goals) == 0:
             self.window.show_input_panel('mvn',' '.join(self.last_run_goals), self.on_done, None, None)

@@ -65,6 +65,7 @@ class PomHandler(object):
         self.artifactId = None
 
     # a little messy but does the job since xml.sax isnt really an option
+    # @todo see if xml.sax is an option for bundled python 3
     def parse(self, pom_file):
         pom_tree = ElementTree.parse(pom_file)
         for node in pom_tree.getroot():
@@ -91,7 +92,7 @@ class PomHandler(object):
             new_groupid = []
             for bit in groupid_bits:
                 new_groupid.append(bit[0])
-            self.groupId = string.join(new_groupid, '.')
+            self.groupId = '.'.join(new_groupid)
         return '%s:%s:PROJECT' % (self.groupId, self.artifactId)
 
 
@@ -120,7 +121,7 @@ class MvnClasspathGrabbingThread(threading.Thread):
             startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
         mvn_proc = subprocess.Popen([mvn,'-N','dependency:build-classpath'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, startupinfo=startupinfo, universal_newlines=True)
         mvn_output, mvn_err = mvn_proc.communicate()
-        # print mvn_output
+        # print(mvn_output)
         os.chdir(curdir)
         cp_line = None
         for line in StringIO(mvn_output):
@@ -128,11 +129,12 @@ class MvnClasspathGrabbingThread(threading.Thread):
             if not not_cp_line:
                 cp_line = line
                 break
-        # print '%s -- %s' % (pom_path, cp_line)
         if cp_line:
             jars = cp_line.split(os.pathsep)
             for jar in jars:
-                self.classpath.add(jar.strip())
+                jar_path = jar.strip()
+                if os.path.isdir(jar_path) or os.path.isfile(jar_path):
+                    self.classpath.add(jar_path)
         else:
             print(('WARNING: no classpath found for pom file in path %s' % self.pom_path))
 
@@ -157,7 +159,16 @@ class PomProjectGeneratorThread(threading.Thread):
     def run(self):
         self.result = None
         pom_paths = []
-        os.walk(self.target_path, self.find_pom_paths, pom_paths)
+        print('in yer threads, walkin yer dirs')
+        for root, dirs, files in os.walk(self.target_path):
+            if 'pom.xml' in files:
+                pom_paths.append({ 'path': root})
+            dirs_to_check = dirs[:]
+            for dir_to_check in dirs_to_check:
+                # skip hiddens and target
+                if dir_to_check[0] == '.' or dir_to_check == 'target':
+                    dirs.remove(dir_to_check)
+        print(str(pom_paths))
 
         if self.project_per_pom:
             self.result = []
@@ -205,7 +216,7 @@ class PomProjectGeneratorThread(threading.Thread):
                 # grab classpath entries
                 cp_thread = MvnClasspathGrabbingThread(project_entry['path'])
                 cp_threads.append(cp_thread)
-                # print 'starting cp thread for %s' % project_entry['path']
+                print('starting cp thread for %s' % project_entry['path'])
                 cp_thread.start()
                 self.merged_classpath.add(os.path.join(project_entry['path'], 'target', 'classes'))
                 self.merged_classpath.add(os.path.join(project_entry['path'], 'target', 'test-classes'))
@@ -238,23 +249,6 @@ class PomProjectGeneratorThread(threading.Thread):
         pom_handler = PomHandler()
         pom_handler.parse(pom_path)
         return pom_handler.get_project_name(self.long_project_names)
-
-
-    '''
-    An os.path.walk() visit function that expects as an arg an empty list.  
-    Folder paths are added to the pom_path list
-    when a pom.xml file is found (hidden paths and 'target' dirs skipped).
-    '''
-    def find_pom_paths(self, pom_paths, dirname, names):
-        # print project_config
-        # print 'dirname=' + dirname
-        if 'pom.xml' in names:
-            pom_paths.append({ "path": dirname })
-        tmpnames = names[:]
-        for name in tmpnames:
-            # skip hiddens
-            if name[0] == '.' or name == 'target':
-                names.remove(name)
 
 
     def publish_config_view(self):
