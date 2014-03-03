@@ -109,7 +109,8 @@ class AsyncMavenProcess(object):
         proc_env = os.environ.copy()
         proc_env.update(env)
         for k, v in proc_env.items():
-            proc_env[k] = os.path.expandvars(v.decode(sys.getfilesystemencoding())).encode(sys.getfilesystemencoding())
+            proc_env[k] = os.path.expandvars(v)
+            # proc_env[k] = os.path.expandvars(v.decode(sys.getfilesystemencoding())).encode(sys.getfilesystemencoding())
 
         # on windows: use mvn.bat
         maven_cmd = None
@@ -207,10 +208,17 @@ class MavenCommand(sublime_plugin.WindowCommand, MavenProcessListener):
 
         self.output_view.settings().set("result_file_regex", file_regex_pattern)
         self.output_view.settings().set("result_base_dir", self.pomDir)
+        self.output_view.settings().set("word_wrap", False)
+        self.output_view.settings().set("line_numbers", False)
+        self.output_view.settings().set("gutter", False)
+        self.output_view.settings().set("scroll_past_end", False)
 
-        # Call show_panel a second time after assigning the above
+        # Call create_output_panel a second time after assigning the above
         # settings, so that it'll be picked up as a result buffer
-        self.window.show_panel("output.mvn_exec")
+        self.window.create_output_panel("mvn_exec")
+
+        # now lets show the thing
+        self.window.run_command("show_panel", {"panel": "output.mvn_exec"})
 
         if len(goals) == 0:
             self.window.show_input_panel('mvn',' '.join(self.last_run_goals), self.on_done, None, None)
@@ -219,6 +227,7 @@ class MavenCommand(sublime_plugin.WindowCommand, MavenProcessListener):
             if props:
                 self.last_run_goals += [ self.replace_class(prop) for prop in props ]
             self.on_done(' '.join(self.last_run_goals))
+
 
     def replace_class(self, str):
         if str.count('$CLASS') == 0:
@@ -232,8 +241,9 @@ class MavenCommand(sublime_plugin.WindowCommand, MavenProcessListener):
 
         return str.replace('$CLASS', main_class)
 
+
     def on_done(self, text):
-        self.window.run_command("show_panel", {"panel": "output.exec"})
+        self.window.run_command("show_panel", {"panel": "output.mvn_exec"})
 
         if self.pomDir:
             os.chdir(self.pomDir)
@@ -251,10 +261,12 @@ class MavenCommand(sublime_plugin.WindowCommand, MavenProcessListener):
             if not self.quiet:
                 self.append_data(None, "[Finished]")
 
+
     def is_enabled(self, paths, goals, props = None, kill = False):
         if len(paths) == 0 and self.window.active_view().file_name():
             paths = [self.window.active_view().file_name()]
         return ((len(paths) == 1) and (pom.find_nearest_pom(paths[0]) != None)) or kill
+
 
     def append_data(self, proc, data):
         if proc != self.proc:
@@ -281,27 +293,20 @@ class MavenCommand(sublime_plugin.WindowCommand, MavenProcessListener):
         #     str = nt_bad_file_regex_pattern.sub(r'\1%s:\2\3' % drive_letter, str)
 
         self.output_view.set_read_only(False)
-        edit = self.output_view.begin_edit()
-        self.output_view.insert(edit, self.output_view.size(), str)
-        self.output_view.end_edit(edit)
-
-        if os.name == 'nt':
-            bad_nt_path_region = self.output_view.find(nt_bad_file_regex_pattern, 0)
-            if bad_nt_path_region:
-                edit = self.output_view.begin_edit()
-                self.output_view.insert(edit, (bad_nt_path_region.begin() + 8), (self.pomDir[0] + ':'))
-                self.output_view.end_edit(edit)
-
+        self.output_view.run_command('append', {'characters': str, 'force': True, 'scroll_to_end': True})
         self.output_view.set_read_only(True)
 
         self.output_view.show(self.output_view.size())
         # sublime.set_timeout(lambda: self.delayed_output_follow, 10)
 
+
     def delayed_output_follow():
         self.output_view.show(self.output_view.size())
 
+
     def print_last_str():
         print((self.last_str))
+
 
     def finish(self, proc):
         self.append_data(proc, "[Finished]")

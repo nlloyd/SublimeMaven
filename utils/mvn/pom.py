@@ -57,12 +57,15 @@ def find_nearest_pom(path):
         else:
             return find_nearest_pom(parent)
 
+
 class PomHandler(object):
+
 
     def __init__(self):
         self.elementsQueue = []
         self.groupId = None
         self.artifactId = None
+
 
     # a little messy but does the job since xml.sax isnt really an option
     # @todo see if xml.sax is an option for bundled python 3
@@ -85,6 +88,7 @@ class PomHandler(object):
                             if tag_name == 'groupId':
                                 if self.groupId == None:
                                     self.groupId = child.text
+
 
     def get_project_name(self, long_name = False):
         if not long_name:
