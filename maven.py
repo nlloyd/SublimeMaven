@@ -142,7 +142,14 @@ class AsyncMavenProcess(object):
     def kill(self):
         if not self.killed:
             self.killed = True
-            self.proc.kill()
+            if sys.platform == "win32":
+                # terminate would not kill process opened by the shell cmd.exe, it will only kill
+                # cmd.exe leaving the child running
+                startupinfo = subprocess.STARTUPINFO()
+                startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+                subprocess.Popen("taskkill /PID " + str(self.proc.pid), startupinfo=startupinfo)
+            else:
+                self.proc.terminate()
             self.listener = None
 
     def poll(self):
@@ -152,7 +159,7 @@ class AsyncMavenProcess(object):
         while True:
             data = os.read(self.proc.stdout.fileno(), 2**15)
 
-            if data != "":
+            if len(data) > 0:
                 if self.listener:
                     self.listener.on_data(self, data)
             else:
@@ -165,7 +172,7 @@ class AsyncMavenProcess(object):
         while True:
             data = os.read(self.proc.stderr.fileno(), 2**15)
 
-            if data != "":
+            if len(data) > 0:
                 if self.listener:
                     self.listener.on_data(self, data)
             else:
@@ -192,7 +199,7 @@ class MavenCommand(sublime_plugin.WindowCommand, MavenProcessListener):
             if self.proc:
                 self.proc.kill()
                 self.proc = None
-                self.append_data(None, "[Cancelled]")
+                self.append_string(None, "[Cancelled]")
             return
 
         if len(paths) == 0 and self.window.active_view().file_name():
@@ -257,9 +264,9 @@ class MavenCommand(sublime_plugin.WindowCommand, MavenProcessListener):
         try:
             self.proc = AsyncMavenProcess(self, self.last_run_goals)
         except err_type as e:
-            self.append_data(None, str(e) + "\n")
+            self.append_string(None, str(e) + "\n")
             if not self.quiet:
-                self.append_data(None, "[Finished]")
+                self.append_string(None, "[Finished]")
 
 
     def is_enabled(self, paths, goals, props = None, kill = False):
@@ -279,6 +286,7 @@ class MavenCommand(sublime_plugin.WindowCommand, MavenProcessListener):
         try:
             str = data.decode("utf-8")
         except:
+            print(data)
             str = "[Decode error - output not utf-8]"
             proc = None
 
@@ -300,6 +308,10 @@ class MavenCommand(sublime_plugin.WindowCommand, MavenProcessListener):
         # sublime.set_timeout(lambda: self.delayed_output_follow, 10)
 
 
+    def append_string(self, proc, str):
+        self.append_data(proc, str.encode('utf-8'))
+
+
     def delayed_output_follow():
         self.output_view.show(self.output_view.size())
 
@@ -309,16 +321,22 @@ class MavenCommand(sublime_plugin.WindowCommand, MavenProcessListener):
 
 
     def finish(self, proc):
-        self.append_data(proc, "[Finished]")
+        self.append_string(proc, "[Finished]")
         if proc != self.proc:
             return
 
         self.output_view.show(self.output_view.size())
         # Set the selection to the start, so that next_result will work as expected
-        edit = self.output_view.begin_edit()
-        self.output_view.sel().clear()
-        self.output_view.sel().add(sublime.Region(0))
-        self.output_view.end_edit(edit)
+        # edit = self.output_view.begin_edit()
+        # self.output_view.sel().clear()
+        # self.output_view.sel().add(sublime.Region(0))
+        # self.output_view.end_edit(edit)
+
+        errs = self.output_view.find_all_results()
+        if len(errs) == 0:
+            sublime.status_message("Build finished")
+        else:
+            sublime.status_message(("Build finished with %d errors") % len(errs))
 
     def on_data(self, proc, data):
         sublime.set_timeout(functools.partial(self.append_data, proc, data), 0)
