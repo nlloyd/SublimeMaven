@@ -110,7 +110,6 @@ class AsyncMavenProcess(object):
         proc_env.update(env)
         for k, v in proc_env.items():
             proc_env[k] = os.path.expandvars(v)
-            # proc_env[k] = os.path.expandvars(v.decode(sys.getfilesystemencoding())).encode(sys.getfilesystemencoding())
 
         # on windows: use mvn.bat
         maven_cmd = None
@@ -305,7 +304,6 @@ class MavenCommand(sublime_plugin.WindowCommand, MavenProcessListener):
         self.output_view.set_read_only(True)
 
         self.output_view.show(self.output_view.size())
-        # sublime.set_timeout(lambda: self.delayed_output_follow, 10)
 
 
     def append_string(self, proc, str):
@@ -326,11 +324,6 @@ class MavenCommand(sublime_plugin.WindowCommand, MavenProcessListener):
             return
 
         self.output_view.show(self.output_view.size())
-        # Set the selection to the start, so that next_result will work as expected
-        # edit = self.output_view.begin_edit()
-        # self.output_view.sel().clear()
-        # self.output_view.sel().add(sublime.Region(0))
-        # self.output_view.end_edit(edit)
 
         errs = self.output_view.find_all_results()
         if len(errs) == 0:

@@ -1,6 +1,5 @@
 *.py[co]
 
-*.sublime-menu
 Generated.sublime-commands
 
 # Packages

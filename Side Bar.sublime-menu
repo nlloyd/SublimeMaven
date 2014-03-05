@@ -1,0 +1,71 @@
+[
+    {
+        "caption": "-",
+        "id": "maven_commands"
+    }, 
+    {
+        "caption": "Maven", 
+        "children": [
+            {
+                "caption": "Run test", 
+                "args": {
+                    "paths": [], 
+                    "goals": [
+                        "test"
+                    ]
+                }, 
+                "command": "maven"
+            }, 
+            {
+                "caption": "Run install", 
+                "args": {
+                    "paths": [], 
+                    "goals": [
+                        "install"
+                    ]
+                }, 
+                "command": "maven"
+            }, 
+            {
+                "caption": "Run clean test", 
+                "args": {
+                    "paths": [], 
+                    "goals": [
+                        "clean", 
+                        "test"
+                    ]
+                }, 
+                "command": "maven"
+            }, 
+            {
+                "caption": "Run clean install", 
+                "args": {
+                    "paths": [], 
+                    "goals": [
+                        "clean", 
+                        "install"
+                    ]
+                }, 
+                "command": "maven"
+            }, 
+            {
+                "caption": "Run ...", 
+                "args": {
+                    "paths": [], 
+                    "goals": []
+                }, 
+                "command": "maven"
+            }, 
+            {
+                "caption": "-"
+            }, 
+            {
+                "caption": "Generate Project from all POMs in Path", 
+                "args": {
+                    "paths": []
+                }, 
+                "command": "import_maven_projects"
+            }
+        ]
+    }
+]
