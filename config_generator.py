@@ -26,7 +26,8 @@ import json
 
 def plugin_loaded():
     settings = sublime.load_settings('Preferences.sublime-settings')
-    plugin_path = os.getcwd()
+    this_file = os.path.normpath(os.path.abspath(__file__))
+    plugin_path = os.path.dirname(this_file)
 
     # write the configuration dependent 'Side Bar', 'Context', and 'Command pallet'
     # using user-specified command lists, or defaults if none found
@@ -61,7 +62,7 @@ def plugin_loaded():
             })
 
         menu_cmd_list = [
-                { "caption": "-" },
+                { "caption": "-", "id": "maven_commands" },
                 {
                 "caption": "Maven",
                 "children": maven_cmd_entry_list
@@ -83,6 +84,6 @@ def plugin_loaded():
         maven_config.flush()
         maven_config.close()
 
-    sublime.set_timeout(generate_config, 3000)
+    sublime.set_timeout_async(generate_config, 1000)
     settings.clear_on_change('maven_menu_commands')
     settings.add_on_change('maven_menu_commands', generate_config)
