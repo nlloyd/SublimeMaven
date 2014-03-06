@@ -1,6 +1,6 @@
 # SublimeMaven
 
-Sublime Text 2 Plugin providing integration with the Apache Maven build and project management tool.
+Sublime Text 3 Plugin providing integration with the Apache Maven build and project management tool.
 
 ## Features
 
