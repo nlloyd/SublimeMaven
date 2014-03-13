@@ -87,6 +87,11 @@ class AsyncMavenProcess(object):
         if os.name == 'posix':
             env['PATH'] = os.environ['PATH'] + os.pathsep + '/usr/local/bin'
 
+        m2_home = None
+        if 'M2_HOME' in env:
+            env['PATH'] += os.pathsep + env['M2_HOME']
+            m2_home = env['M2_HOME']
+
         proc_env = os.environ.copy()
         proc_env.update(env)
         for k, v in proc_env.iteritems():
