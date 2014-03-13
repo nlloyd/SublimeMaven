@@ -8,16 +8,20 @@ Sublime Text 2 Plugin providing integration with the Apache Maven build and proj
 - Sublime project file creation from a directory hierarchy with multiple pom files
 - SublimeJava plugin integration: classpath generation for SublimeJava autocomplete plugin (classpath containing all unique dependencies across all maven projects in the selected directory hierarchy)
 
-
+  
 ## User Configuration
 
-Although not always necessary, for cases where M2_HOME is not available to sublime (Sublime not started via command-line on linux/macosx) one must specify in user settings the m2_home property as shown below:
+Although not always necessary, for cases where M2_HOME is not available to sublime (Sublime not started via command-line on linux/macosx) one must specify in a user settings file named "Maven.sublime-settings" the m2_home property as shown below:
 
 <pre><code>
 {
-    "m2_home": "/usr/local/maven"
+    "maven_env_vars": {
+      "m2_home": "/usr/local/maven"
+    }
 }
 </code></pre>
+
+This section of The "Maven.sublime-settings" file can support any environment variable you wish to override or provide to the launched mavne subprocess, such as MAVEN_OPTS or JAVA_HOME.
 
 The default commands available in the menus and command palette are "mvn install", "mvn clean install", and a choose-your-own mvn execution.
 You can change this list to include your own custom commands (note that "Maven: Run ..." is always added to any configured list, if not found).
