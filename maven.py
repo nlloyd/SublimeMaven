@@ -76,11 +76,13 @@ class AsyncMavenProcess(object):
             startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
 
         m2_settings = get_setting('m2_settings')
-        m2_home = get_setting('m2_home')
+        maven_env_vars = get_setting('maven_env_vars')
 
         env = {}
-        if m2_home:
-            env['M2_HOME'] = m2_home
+        if maven_env_vars:
+            for env_var, value in maven_env_vars.iteritems():
+                env[env_var.upper()] = value
+
         # add /usr/local/bin to the path (for some reason not present through sublime)
         if os.name == 'posix':
             env['PATH'] = os.environ['PATH'] + os.pathsep + '/usr/local/bin'
