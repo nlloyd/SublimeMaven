@@ -101,7 +101,7 @@ class AsyncMavenProcess(object):
 
         env = {}
         if maven_env_vars:
-            for env_var, value in maven_env_vars.iteritems():
+            for env_var, value in maven_env_vars.items():
                 env[env_var.upper()] = value
 
         # add /usr/local/bin to the path (for some reason not present through sublime)
