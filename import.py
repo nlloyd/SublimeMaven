@@ -34,8 +34,12 @@ if (sublime_version >= 2000) and (sublime_version < 3000):
     if libs_path not in sys.path:
         sys.path.insert(0, libs_path)
 
-from Maven.utils import ui
-from Maven.utils.mvn import pom
+try:
+    from Maven.utils import ui
+    from Maven.utils.mvn import pom
+except ImportError:
+    from SublimeMaven.utils import ui
+    from SublimeMaven.utils.mvn import pom
 
 '''
 ImportMavenProjectsCommand: creates a *.sublime-project file with folders added for each pom.xml path found starting at a root directory.
